@@ -8,6 +8,7 @@
   <img alt="runtime" src="https://img.shields.io/badge/runtime-pywebview%20%2B%20WebView2-5C2D91?style=flat-square">
   <img alt="llm" src="https://img.shields.io/badge/LLM-Ollama%20local-000000?style=flat-square">
   <img alt="privacy" src="https://img.shields.io/badge/privacy-local--first-2EA043?style=flat-square">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-3DA639?style=flat-square">
 </p>
 
 她不是「一问一答」的客服式助手。她会连发三条、会丢表情包、会自己画图，也会在你三分钟没说话时先开口。
@@ -165,3 +166,9 @@ py -3.10 -m PyInstaller --noconfirm --clean --onefile --windowed `
 ## 状态
 
 当前版本 **1.0**：聊天、语音、表情包、生图、记忆检索、唱歌台与扒歌学习、全局快捷键均已并入主程序并完成回归验证。唱歌台可在 exe 内直接调用，也可于 `puppy-sing/` 独立运行。
+
+---
+
+## 许可
+
+[MIT](LICENSE) © 2026 oTATo666
