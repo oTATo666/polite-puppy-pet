@@ -1,0 +1,9 @@
+{
+  "base_url": "http://127.0.0.1:11434/v1",
+  "model": "qwen-local-4b:latest",
+  "temperature": 0.75,
+  "max_tokens": 300,
+  "timeout": 180,
+  "allow_danger": false,
+  "allow_roots": []
+}

@@ -1,0 +1,8 @@
+{
+  "_说明": "小狗克隆音色的参考素材。ref_wav 是参考音频，prompt_text 是这段音频里说的话（越准越像）。",
+  "ref_wav": "C:\\Users\\zheng'zheng\\OneDrive\\Desktop\\礼貌小狗_语音素材\\我的声音\\示例_任意文字.wav",
+  "prompt_text": "小诺，今天也要元气满满哦，汪！",
+  "text_lang": "zh",
+  "prompt_lang": "zh",
+  "media_type": "wav"
+}

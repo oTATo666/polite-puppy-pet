@@ -1,0 +1,38 @@
+# ---- 构建产物 / 打包缓存 ----
+__pycache__/
+*.pyc
+build/
+dist/
+dist_agent/
+dist_new/
+*.spec
+*.exe
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+
+# ---- 运行时数据 / 缓存 / 日志 ----
+.voice_cache/
+agent_data/
+记忆/
+试听/
+表情包/
+voices/
+puppy-1024/
+puppy_agent/
+plugins/
+dev/
+生成/
+puppy-sing/cache/
+*.db
+*.log
+*.bak*
+
+# ---- 密钥 / 环境变量 ----
+.env
+
+# ---- 旧版/多余的打包（仅保留 小狗桌宠1.0.zip）----
+礼貌小狗_整理交付包*.zip
+*_最新版_*.zip
+*原版备份*.zip
