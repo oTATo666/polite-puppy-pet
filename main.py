@@ -726,6 +726,23 @@ def server_mode_enabled() -> bool:
     return "--server" in sys.argv[1:]
 
 
+# ---- 服务器精简模式闸门 -----------------------------------------------------
+# 公网无鉴权部署时，这些接口要么会拉起大进程（克隆 TTS 一开就是几个 G 的模型），
+# 要么能执行外部工具命令、整包导入/恢复记忆、收 24MB 上传——在 2G 内存的
+# 服务器上每一个都是事故源。服务器模式下直接拒绝，桌面端完全不受影响。
+SERVER_LITE_BLOCKED_POST = frozenset({
+    "/api/upload", "/api/ppt", "/api/draw", "/api/speak",
+    "/api/voice/start", "/api/voice/stop", "/api/voice/poll",
+    "/api/tool", "/api/tools/config", "/api/tools/stop", "/api/tools/clear",
+    "/api/memory/import", "/api/memory/extract", "/api/memory/snapshot",
+    "/api/memory/clear", "/api/agent/call", "/api/agent/restore",
+    "/api/agent/act",
+})
+
+# LLM 请求限并发：防止扫描器/多开把小机器的内存和出网带宽打满
+_CHAT_GATE = threading.BoundedSemaphore(3)
+
+
 def bind_host() -> str:
     """监听地址：默认只给本机；POLITE_PUPPY_BIND=0.0.0.0 才对外。"""
     return (os.environ.get("POLITE_PUPPY_BIND") or "127.0.0.1").strip() or "127.0.0.1"
@@ -3242,6 +3259,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._request_allowed():
             return
         route = self._path_only()
+        # 服务器精简模式：重接口一律拒绝（详见 SERVER_LITE_BLOCKED_POST 注释）
+        if server_mode_enabled() and route in SERVER_LITE_BLOCKED_POST:
+            self._send_json(503, {"ok": False,
+                                  "message": "服务器精简模式未开放此功能（语音/绘图/工具/上传/记忆导入恢复）"})
+            return
         if route not in ("/api/chat", "/api/diary", "/api/ppt", "/api/draw",
                          "/api/daylog", "/api/brain", "/api/upload",
                          "/api/speak", "/api/voice/start", "/api/voice/stop",
@@ -3437,7 +3459,14 @@ class _Handler(BaseHTTPRequestHandler):
                                       "inserted_total": 0, "skipped_total": 0})
             return
 
-        self._handle_chat(payload)
+        # /api/chat 是 do_POST 的最终分派点；LLM 请求限并发（BoundedSemaphore(3)）
+        if not _CHAT_GATE.acquire(blocking=False):
+            self._send_json(429, {"ok": False, "message": "小狗忙线中，稍等一下再发"})
+            return
+        try:
+            self._handle_chat(payload)
+        finally:
+            _CHAT_GATE.release()
 
     # ---- /api/upload：照片/文件本地解析（不联网、不调模型） ----
     def _handle_upload(self, payload: dict[str, Any]) -> None:
