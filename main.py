@@ -26,6 +26,7 @@ import random
 import base64
 import re
 import shutil
+import signal
 import socket
 import sqlite3
 import subprocess
@@ -701,6 +702,62 @@ DATA_DIR = appdata_dir()
 LOG_FILE = DATA_DIR / "pet.log"
 CONFIG_FILE = DATA_DIR / "settings.json"
 
+# ---------------------------------------------------------------------------
+# 服务器模式（部署到服务器时用；桌面端默认完全不启用）
+#
+#   POLITE_PUPPY_SERVER=1 / main.py --server
+#       只跑本地 HTTP 服务，不开窗口、不建托盘、不注册全局热键，
+#       供 IIS / Nginx / 宝塔反向代理转发。适合"把这只狗放到云上"的场景。
+#
+#   POLITE_PUPPY_BIND=0.0.0.0
+#       监听地址。默认 127.0.0.1（只给本机看）。改成 0.0.0.0 才能被反代访问。
+#
+#   POLITE_PUPPY_PORT=8765
+#       固定端口。默认在 8765-8795 里挑第一个空闲端口。
+#
+#   POLITE_PUPPY_ALLOWED_HOSTS=dog.example.com
+#       额外允许的 Host / Origin（反代到域名时必须配，否则 403 forbidden host）。
+#       逗号或空格分隔，可写 host 或 host:port。
+# ---------------------------------------------------------------------------
+def server_mode_enabled() -> bool:
+    flag = (os.environ.get("POLITE_PUPPY_SERVER") or "").strip().lower()
+    if flag in ("1", "true", "yes", "on"):
+        return True
+    return "--server" in sys.argv[1:]
+
+
+def bind_host() -> str:
+    """监听地址：默认只给本机；POLITE_PUPPY_BIND=0.0.0.0 才对外。"""
+    return (os.environ.get("POLITE_PUPPY_BIND") or "127.0.0.1").strip() or "127.0.0.1"
+
+
+def fixed_port() -> int:
+    raw = (os.environ.get("POLITE_PUPPY_PORT") or "").strip()
+    return int(raw) if raw.isdigit() else 0
+
+
+def allowed_hostnames() -> set[str]:
+    """允许访问本服务的主机名集合（用于 Host / Origin 校验，防 DNS rebinding）。"""
+    names = {"127.0.0.1", "localhost", "::1"}
+    b = bind_host().lower()
+    if b and b not in ("0.0.0.0", "*"):
+        names.add(b)
+    extra = os.environ.get("POLITE_PUPPY_ALLOWED_HOSTS") or ""
+    for item in re.split(r"[,;\s]+", extra.strip()):
+        if not item:
+            continue
+        item = item.strip().lower()
+        if item.startswith("http://") or item.startswith("https://"):
+            item = urllib.parse.urlsplit(item).hostname or ""
+        if item.startswith("[") and "]" in item:
+            item = item[1:item.index("]")]
+        elif ":" in item:
+            item = item.rsplit(":", 1)[0]
+        if item:
+            names.add(item)
+    return names
+
+
 DIARY_TEMPLATE = """# 千逐的日记。一行一件事，RAG 就从这里检索。
 # 写法：2025-03-11 他说月考数学考砸了，我陪他聊到十二点
 # 越具体越有用。带日期的那行会按时间算权重。
@@ -995,6 +1052,10 @@ def chat_candidates(cfg: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def message_box(text: str, title: str = APP_NAME, error: bool = False) -> None:
+    if server_mode_enabled():
+        # 服务器上没有交互桌面，弹窗会永远挂着；改成写日志。
+        log.error("[%s] %s", title, text)
+        return
     try:
         flags = 0x10 if error else 0x40  # MB_ICONERROR / MB_ICONINFORMATION
         ctypes.windll.user32.MessageBoxW(None, str(text), str(title), flags)
@@ -2738,18 +2799,24 @@ class _Handler(BaseHTTPRequestHandler):
     def _request_allowed(self) -> bool:
         host = (self.headers.get("Host") or "").strip().lower()
         port = int(self.server.server_port)
-        allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
-        if host not in allowed_hosts:
+        # 反向代理到域名时 Host 可能是 "dog.example.com"（不含端口），
+        # 这里按"主机名"比对，避免 8765:PORT 的写法把域名请求全挡掉。
+        try:
+            hostname = (urllib.parse.urlsplit("//" + host).hostname or "").lower()
+        except ValueError:
+            hostname = ""
+        allowed = allowed_hostnames()
+        if host not in {f"127.0.0.1:{port}", f"localhost:{port}"} and hostname not in allowed:
             self._send_json(403, {"ok": False, "message": "forbidden host"})
             return False
 
         origin = (self.headers.get("Origin") or "").strip()
         if origin:
             try:
-                origin_host = urllib.parse.urlsplit(origin).netloc.lower()
+                origin_host = urllib.parse.urlsplit(origin).hostname or ""
             except ValueError:
                 origin_host = ""
-            if origin_host != host:
+            if origin_host.lower() != hostname:
                 self._send_json(403, {"ok": False, "message": "forbidden origin"})
                 return False
 
@@ -4756,9 +4823,12 @@ class LocalServer:
         last_error: Exception | None = None
         # 不用 +[0] 随机端口：端口一变，页面的 origin 就变，IndexedDB 里的表情包
         # 会按 origin 隔离而"集体消失"。固定从 8765 起找空闲端口，找不到就报错。
-        for port in list(self.preferred_ports):
+        host = bind_host()
+        pinned = fixed_port()
+        ports = [pinned] if pinned else list(self.preferred_ports)
+        for port in ports:
             try:
-                httpd = _LocalHTTPServer(("127.0.0.1", port), _Handler)
+                httpd = _LocalHTTPServer((host, port), _Handler)
                 self.httpd = httpd
                 break
             except OSError as exc:
@@ -4769,7 +4839,7 @@ class LocalServer:
         self.port = int(self.httpd.server_address[1])
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="local-http", daemon=True)
         self.thread.start()
-        log.info("本地服务已启动：http://127.0.0.1:%d", self.port)
+        log.info("本地服务已启动：http://%s:%d", host, self.port)
         return self.port
 
     def stop(self) -> None:
@@ -9671,7 +9741,44 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--debug", action="store_true", help="打开 devtools 并输出调试日志")
     parser.add_argument("--no-tray", action="store_true", help="不创建系统托盘（调试用）")
     parser.add_argument("--allow-multi", action="store_true", help="允许重复启动（调试用）")
+    parser.add_argument("--server", action="store_true",
+                        help="服务器模式：只跑本地 HTTP 服务，不开窗口/托盘（供反向代理）")
     return parser.parse_args(argv)
+
+
+def run_server(args: argparse.Namespace) -> int:
+    """服务器模式：只起本地 HTTP 服务，交给 IIS / Nginx / 宝塔反代。
+
+    没有 GUI 依赖：不开窗口、不建托盘、不注册全局热键，崩溃后由守护进程拉起即可。
+    """
+    app = PetApp(no_tray=True, debug=args.debug)
+    port = app.server.start()
+    log.info("服务器模式已启动：http://%s:%d  允许的 Host: %s",
+             bind_host(), port, ", ".join(sorted(allowed_hostnames())))
+    # 给进程守护（宝塔/PM2/NSSM）一个明确的就绪信号
+    try:
+        print("SERVER_READY http://%s:%d" % (bind_host(), port), flush=True)
+    except Exception:
+        pass
+
+    stop = threading.Event()
+
+    def _on_signal(*_args: Any) -> None:
+        stop.set()
+
+    for sig in ("SIGINT", "SIGTERM", "SIGBREAK"):
+        try:
+            signal.signal(getattr(signal, sig), _on_signal)
+        except Exception:
+            pass
+
+    try:
+        while not stop.is_set():
+            stop.wait(1.0)
+    finally:
+        app.server.stop()
+        log.info("服务器模式已停止")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -9696,6 +9803,16 @@ def main(argv: list[str] | None = None) -> int:
             log.info("已生成记忆日记模板：%s", DIARY_FILE)
         except OSError:
             log.warning("记忆日记创建失败，RAG 会暂时为空")
+
+    # ---- 服务器模式：走这里就不进 GUI 分支 ----
+    if args.server or server_mode_enabled():
+        try:
+            return run_server(args)
+        except Exception as exc:
+            log.exception("服务器模式启动失败")
+            message_box(f"服务器模式启动失败：\n{exc}\n\n日志：{LOG_FILE}", APP_NAME, True)
+            return 1
+
     if not args.allow_multi and another_instance_running():
         info = probe_running_pet()
         if info:
