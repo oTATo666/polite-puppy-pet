@@ -30,8 +30,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_REPO = Path(r"C:\Users\zheng'zheng\WorkBuddy\2026-10-29-01-01-48\GPT-SoVITS")
-DEFAULT_GSV_PY = Path(r"C:\Users\zheng'zheng\WorkBuddy\voice-clone-env\Scripts\python.exe")
+# 默认值从环境变量读，仓库里不写死本机路径；没有就用 --repo / --gsv-python 传
+DEFAULT_REPO = Path(os.environ.get("GSV_REPO") or "")
+DEFAULT_GSV_PY = Path(os.environ.get("GSV_PYTHON") or "")
 
 API_PORT = 9881
 GW_PORT = 9880

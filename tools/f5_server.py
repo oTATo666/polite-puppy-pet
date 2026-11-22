@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""本地 F5-TTS 克隆音色服务（常驻 HTTP）。
+r"""本地 F5-TTS 克隆音色服务（常驻 HTTP）。
 
 桌宠后端 CloneTTS 配 VOICE_TTS_URL 指向这里，把任意文本合成为小狗的克隆音色。
 
@@ -8,9 +8,11 @@
     POST /tts               body={"text":"文本"}   （简化版）
     GET  /health            返回 {"ok":true,...}
 
-启动（必须用 voice-clone-env 的 python）：
-    "C:\\Users\\zheng'zheng\\WorkBuddy\\voice-clone-env\\Scripts\\python.exe" ^
-        "C:\\Users\\zheng'zheng\\OneDrive\\Desktop\\礼貌小狗桌宠\\tools\\f5_server.py" --port 9880
+启动（必须用装了 torch/f5_tts 的那个 python）：双击程序目录下的
+「启动克隆音色服务.cmd」，或手动：
+
+    set F5_PYTHON=<你的克隆环境>\Scripts\python.exe
+    "%F5_PYTHON%" tools\f5_server.py --port 9880
 """
 from __future__ import annotations
 

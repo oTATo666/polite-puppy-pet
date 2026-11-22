@@ -1,29 +1,27 @@
 # ---- 构建产物 / 打包缓存 ----
 __pycache__/
 *.pyc
-build/
-dist/
-dist_agent/
-dist_new/
-*.spec
+/build/
+/dist/
+/dist_agent/
+/dist_new/
+/*.spec
 *.exe
 
 # ---- 虚拟环境 ----
 .venv/
 venv/
 
-# ---- 运行时数据 / 缓存 / 日志 ----
-.voice_cache/
-agent_data/
-记忆/
-试听/
-表情包/
-voices/
-puppy-1024/
-puppy_agent/
-plugins/
-dev/
-生成/
+# ---- 运行时数据 / 缓存 / 日志（只锚仓库根，别误伤 puppy_agent/plugins 这类源码目录）----
+/.voice_cache/
+/agent_data/
+/记忆/
+/试听/
+/voices/
+/puppy-1024/
+/plugins/
+/dev/
+/生成/
 puppy-sing/cache/
 *.db
 *.log
@@ -31,14 +29,16 @@ puppy-sing/cache/
 
 # ---- 密钥 / 环境变量 ----
 .env
+private_names.local.txt
 
-# ---- 个人数据：永不入库（日记 / 记忆库 / 日记源文件）----
+# ---- 个人数据：永不入库（日记 / 语料 / 记忆库 / 日记源文件）----
 memory_diary.txt
 brain.json
 小狗日记*.txt
 puppy_agent_memory.db
 
-# ---- 旧版/多余的打包（仅保留 小狗桌宠1.0.zip）----
+# ---- 旧版/多余的打包（仅保留 小狗桌宠1.1.zip）----
 礼貌小狗_整理交付包*.zip
+礼貌小狗1.*.zip
 *_最新版_*.zip
 *原版备份*.zip

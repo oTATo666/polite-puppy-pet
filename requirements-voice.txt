@@ -1,0 +1,31 @@
+# 礼貌小狗 · 语音链路依赖（可选，GPU）
+# ---------------------------------------------------------------------------
+# 只在你要「克隆音色实时合成」（F5-TTS）或「分析音色档案」时才装。
+# 不装也能聊天：语音会回落到音色档案里的台词库，再不行就安静，不会换别人的声音。
+#
+# 建议单独建环境，别和主程序混：
+#     py -3.10 -m venv voice-clone-env
+#     voice-clone-env\Scripts\python.exe -m pip install -r requirements-voice.txt
+#
+# 然后告诉桌宠用哪个解释器（二选一）：
+#     - 环境变量 F5_PYTHON 指向 voice-clone-env\Scripts\python.exe，或
+#     - 把这个环境放在程序目录下并命名 .venv / voice-clone-env（自动发现）
+# ---------------------------------------------------------------------------
+
+# torch / torchaudio 请先按 PyTorch 官网给的命令装 CUDA 版（cu121/cu124 视显卡而定），
+# 下面这两行是 CPU 兜底；装过 CUDA 版就别再执行这两行，免得被换成 CPU 版。
+#   pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+torch==2.4.1
+torchaudio==2.4.1
+
+# 读写音频 + 数值计算（tools/f5_clone.py、tools/voice_profile.py 用到）
+numpy==1.26.4
+soundfile==0.12.1
+
+# F5-TTS 的配置加载依赖
+omegaconf==2.3.0
+hydra-core==1.3.2
+
+# F5-TTS 本体：PyPI 上没有稳定包，用官方仓库装
+#   pip install git+https://github.com/SWivid/F5-TTS.git
+# （装完再回来跑 f5_server.py --port 9880，或双击 启动克隆音色服务.cmd）

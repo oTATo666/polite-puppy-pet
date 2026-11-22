@@ -40,8 +40,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REF_JSON = ROOT / "tools" / "tts_ref.json"
 
-# 默认参考音频：用户提供的那段素材
-DEFAULT_REF = r"C:\Users\zheng'zheng\OneDrive\Desktop\礼貌小狗_语音素材\我的声音\示例_任意文字.wav"
+# 默认参考音频：用环境变量 PUPPY_TTS_REF_WAV 指向你自己的素材（仓库不写死路径）
+DEFAULT_REF = os.environ.get("PUPPY_TTS_REF_WAV", "")
 
 DEFAULT_CONFIG = {
     "_说明": "小狗克隆音色的参考素材。ref_wav 是参考音频，prompt_text 是这段音频里说的话（越准越像）。",

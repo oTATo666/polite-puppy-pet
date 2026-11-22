@@ -83,9 +83,9 @@ BEAT = 0.34  # 每拍秒数
 # F5-TTS 小狗原声引擎：复用桌宠已有的 f5_server HTTP 服务（端口 9880）
 PUPPY_ROOT = os.path.dirname(HERE)                       # 礼貌小狗桌宠/
 F5_SERVER_URL = os.environ.get("F5_SERVER_URL", "http://127.0.0.1:9880")
-VOICE_CLONE_ENV = os.environ.get(
-    "VOICE_CLONE_ENV",
-    r"C:\Users\zheng'zheng\WorkBuddy\voice-clone-env\Scripts\python.exe")
+# 指向装了 F5-TTS 的 venv 解释器（环境变量 VOICE_CLONE_ENV 指定）
+# 不设也能用：只是不能自动拉起 f5_server，需要你先手动启动它
+VOICE_CLONE_ENV = os.environ.get("VOICE_CLONE_ENV", "")
 F5_SERVER_SCRIPT = os.path.join(PUPPY_ROOT, "tools", "f5_server.py")
 F5_REF_AUDIO = os.path.join(PUPPY_ROOT, "voices", "profiles", "小狗", "ref.wav")
 

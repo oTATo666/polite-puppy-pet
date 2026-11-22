@@ -63,8 +63,23 @@ CKPT = F5_DIR / "F5TTS_v1_Base" / "model_1250000.safetensors"
 VOCOS_DIR = F5_DIR / "vocos"
 REF_AUDIO = CACHE / "ref_clean.wav" or (CACHE / "ref_clean.wav")
 REF_TEXT_FILE = CACHE / "ref_text.txt"
-# 参考音频：优先洗净版，否则回落到 voice_clone 的 48k PCM16
-REF_FALLBACK = Path(r"C:\Users\zheng'zheng\WorkBuddy\2026-10-24-16-48-19\voice_clone\audio\ref_48k_s16.wav")
+
+
+def _fallback_ref() -> Path:
+    """参考音频的兜底位置：F5_REF_WAV > 音色档案里的 ref.wav。
+
+    原来这里写死了作者本机的绝对路径（含用户名），换台机器就找不到，
+    也把用户名泄在源码里。现在只认环境变量与程序目录内的相对位置。
+    """
+    raw = (os.environ.get("F5_REF_WAV") or "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        return p if p.is_absolute() else APP_DIR / p
+    return APP_DIR / "voices" / "profiles" / "小狗" / "ref.wav"
+
+
+# 参考音频：优先洗净版，否则回落到音色档案里那条（voice_identity 会先试它）
+REF_FALLBACK = _fallback_ref()
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

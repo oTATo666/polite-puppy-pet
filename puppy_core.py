@@ -800,8 +800,9 @@ class Agent:
         ident = p.get("identity") or {}
         style = p.get("style") or {}
         pers = p.get("personality") or {}
-        name = ident.get("name") or "千逐"
-        owner = ident.get("owner") or "郑郑"
+        import identity as _ident
+        name = ident.get("name") or _ident.pet_name()
+        owner = ident.get("owner") or _ident.user_nick()
         avg = style.get("avg_len") or 4.2
         maxlen = style.get("max_len") or 20
         core = pers.get("core") or "慢热，嘴硬心软"
@@ -1148,9 +1149,10 @@ def cli(agent: Agent) -> None:
             print("  上下文已清空（记忆还在）")
             continue
         if line == "/persona":
+            import identity as _ident
             p = agent.persona or {}
-            print("  名字：%s　主人：%s" % ((p.get("identity") or {}).get("name", "千逐"),
-                                        (p.get("identity") or {}).get("owner", "郑郑")))
+            print("  名字：%s　主人：%s" % ((p.get("identity") or {}).get("name", _ident.pet_name()),
+                                        (p.get("identity") or {}).get("owner", _ident.user_nick())))
             print("  性格：%s" % (p.get("personality") or {}).get("core", ""))
             continue
 

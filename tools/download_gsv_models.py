@@ -16,6 +16,7 @@ GPT-SoVITS 预训练模型下载器（与官方 install.ps1 / install.sh 同源�
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 import tempfile
@@ -23,8 +24,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-DEFAULT_REPO = r"C:\Users\zheng'zheng\WorkBuddy\2026-10-29-01-01-48\GPT-SoVITS"
-DEFAULT_PY = r"C:\Users\zheng'zheng\WorkBuddy\voice-clone-env"
+DEFAULT_REPO = os.environ.get("GSV_REPO", "")
+DEFAULT_PY = os.environ.get("GSV_PYTHON", "")
 
 SOURCES = {
     "modelscope": "https://www.modelscope.cn/models/XXXXRT/GPT-SoVITS-Pretrained/resolve/master/{name}",

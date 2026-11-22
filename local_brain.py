@@ -183,13 +183,25 @@ OK_FOR_INTENT: dict[str, str] = {
 # 这些话在任何"非吵架"语境下都不该冒出来（语料里有吵架片段）
 GLOBAL_BAD = re.compile(r"(闭嘴|滚开|有病|去死|神经|傻逼|滚蛋)")
 
-# 少数必须说准的（都是它真的说过的话）
-OVERRIDE: dict[str, str] = {
-    "name": "我是千逐.",
-}
+# 少数必须说准的（都是它真的说过的话）。名字运行时注入（N-24），
+# 源码里不出现词面——外发版自动落到中性名。
+import identity as _identity
+
+
+def _override_reply() -> dict[str, str]:
+    return {"name": "我是%s." % _identity.pet_name()}
+
+
+OVERRIDE: dict[str, str] = _override_reply()
 
 # 对方明显低落时，先给一句真正接得住的话（语料里它就这么开头）
 EMPATHY = ["咋了", "怎么了", "咋啦", "我在", "没事吧", "咋整", "咋回事"]
+
+# P1-6：最高分低于阈值时的安全兜底。
+# 为什么需要：候选分都很低说明"这库里没有能接住这句话的东西"，这时候
+# 硬挑一条最高分（往往是个"嗯"）比说一句中性的追问更敷衍。这几句都是
+# 不承诺任何事实、也不会说错的接话，语气跟它平时一致。
+SAFE_FALLBACK = ["咋了", "说说", "真的假的", "我听着呢", "然后呢", "咋想的"]
 
 # 意图 -> 回话策略（决定"怎么说"，不是"说什么"）
 STRATEGY_OF_INTENT = {
@@ -231,6 +243,12 @@ class Brain:
     DEDUP_WINDOW = 6      # 最近这么多轮里说过的话不再说
     MIN_TOPIC_HITS = 6    # 共现次数低于这个的片段不配当话题
     HYBRID_MAX_CHARS = 8  # 借用外部小模型时，过了这个长度就不像它了
+
+    # ---- P1-6：措辞质量 ----
+    MIN_SCORE = 2.6       # 最高分低于这个 → 不硬凑，改用安全兜底句
+    TOPIC_WEIGHT = 1.1    # 话题命中度：候选里每命中一个话题片段加这么多（独立权重）
+    TOPIC_CAP = 3.3       # 话题加分封顶，别让它压过"跟他这句话有重叠"
+    SHORT_OK_CHARS = 3    # 他这句话不超过这么多字时，才允许用单字回复
 
     def __init__(self, path: str | os.PathLike | None = None) -> None:
         if path:
@@ -360,13 +378,20 @@ class Brain:
         # 6) 打分
         ub = bigrams(text)
         recent = ctx["recent_dog"]
+        # 话题命中度：把话题拆成片段，看候选命中几个（而不是"有没有"这一刀切）
+        topic_grams = [g for g in grams(topic) if g] if topic else []
         scored: list[tuple[str, float]] = []
         for cand, w in cands.items():
             s = math.log(1.0 + w)
             if ub & bigrams(cand):
                 s += 2.2                       # 跟他这句话有字面重叠 = 在回应他
-            if topic and topic in cand:
-                s += 3.0                       # 带着当前话题词 = 上下文连贯
+            if topic:
+                # P1-6：话题命中度作为**独立权重**——命中越多，越像是接着这件事说
+                hit = sum(1 for g in topic_grams if g in cand)
+                if hit:
+                    s += min(self.TOPIC_WEIGHT * hit, self.TOPIC_CAP)
+                if topic in cand:
+                    s += 1.5                   # 整个话题词都在，比片段命中再重一点
             if same and ctx["topic"] and ctx["topic"] in cand:
                 s += 1.2                       # 延续上一轮话题
             if cand in recent:
@@ -382,8 +407,26 @@ class Brain:
             scored.append((cand, s))
         scored.sort(key=lambda x: -x[1])
         top = scored[:6]
-        pick = self._rng.choice(top)[0] if top else "嗯"
-        thought.append(f"打分：最高 {top[0][1]:.1f}「{top[0][0]}」→ 选定「{pick}」")
+        best = top[0][1] if top else 0.0
+        if not top or best < self.MIN_SCORE:
+            # P1-6：谁都不够格的时候别硬挑一个"嗯"，换一句中性但接得住的话
+            pick = self._rng.choice(SAFE_FALLBACK)
+            thought.append("打分：最高 %.1f 低于阈值 %.1f → 用安全兜底句「%s」"
+                           % (best, self.MIN_SCORE, pick))
+        else:
+            pick = self._rng.choice(top)[0]
+            thought.append(f"打分：最高 {best:.1f}「{top[0][0]}」→ 选定「{pick}」")
+
+        # P1-6：单字回复只在极短提问时才允许。他打了一整句，回一个"嗯"就是敷衍。
+        if len(pick) <= 1 and len(text) > self.SHORT_OK_CHARS:
+            alt = next((c for c, _ in scored
+                        if 2 <= len(c) <= self.MAX_LEN and c not in recent), "")
+            if alt:
+                thought.append(f"自检：单字「{pick}」太敷衍，改「{alt}」")
+                pick = alt
+            else:
+                pick = self._rng.choice(SAFE_FALLBACK)
+                thought.append(f"自检：没有更长的候选，用兜底句「{pick}」")
 
         # 7) 自检：太不像它 / 重复了 → 重挑
         if len(pick) > self.MAX_LEN or (recent and pick == recent[0]):
@@ -445,7 +488,11 @@ class Brain:
 
         # 去掉各种包装：引号、角色前缀、称呼
         p = p.strip("\"'“”‘’《》（）()")
-        p = re.sub(r"^(千逐|小狗|我)[:：]\s*", "", p)
+        # N-24：角色前缀里的名字从 identity 取（个人版=真实名，外发版=中性名），
+        # 兼容 brain.json 语料里的发言人前缀——它本来就是数据键，语料换成
+        # 什么名字这里就剥什么名字。
+        alias = [re.escape(x) for x in _identity.pet_aliases() + ["我"]]
+        p = re.sub(r"^(%s)[:：]\s*" % "|".join(alias), "", p)
         p = re.sub(r"^[,，、。！？!?.~\s]+", "", p)
         # 只取第一句：它从来不说一长串
         p = re.split(r"[。！？!?；;\n]", p)[0].strip()

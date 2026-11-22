@@ -1,47 +1,25 @@
-﻿# 打包脚本：走 spec 模式，打完自动自检
+﻿# 兼容壳：真正的打包脚本在 scripts\build_exe.ps1
 #
-# ⚠ 不要改回"命令行参数打包"（--add-data ... main.py）。
-#   tools/ 下的模块是运行期才 import 的，命令行方式扫不到，必然漏，
-#   而且漏了不报错——voice_identity 当初就是这么丢的，用户点到音色才炸。
-#   spec 里已经显式列了，新增 tools 模块请同步改 spec 的 datas。
+# 1.1 起，spec / 自检 / build_info 都收进了 scripts\，这一份只做转调，
+# 免得老习惯 `.\build.ps1` 或旧文档里的命令直接报「找不到文件」。
 #
-# 注意：不要设 $ErrorActionPreference = "Stop"——PyInstaller 的 INFO 走 stderr，
-# 配合 2>&1 重定向会被当成终止性错误，脚本第一行就退出。
-$ErrorActionPreference = "Continue"
-Set-Location $PSScriptRoot
+# 用法：powershell -ExecutionPolicy Bypass -File .\build.ps1
+#       powershell -ExecutionPolicy Bypass -File .\build.ps1 -Python C:\Python310\python.exe
 
-$py = "py"
-if (Test-Path ".venv\Scripts\python.exe") { $py = ".venv\Scripts\python.exe" }
+param([string]$Python = "")
 
-Write-Host "`n[1/3] 清理旧产物" -ForegroundColor Cyan
-foreach ($d in @("build", "dist")) {
-  if (Test-Path $d) { Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue }
+$ErrorActionPreference = "Stop"
+$target = Join-Path $PSScriptRoot "scripts\build_exe.ps1"
+
+if (-not (Test-Path $target)) {
+    Write-Host "找不到 $target（scripts\ 目录缺失？）" -ForegroundColor Red
+    exit 1
 }
 
-Write-Host "`n[2/3] PyInstaller 打包（spec 模式）" -ForegroundColor Cyan
-& $py -m PyInstaller --noconfirm --clean --distpath "dist" --workpath "build" "PolitePuppy_voicefix.spec"
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "`n构建失败，退出码 $LASTEXITCODE" -ForegroundColor Red
-  exit $LASTEXITCODE
+Write-Host "build.ps1 已迁移，转调 scripts\build_exe.ps1 ..." -ForegroundColor Cyan
+if ($Python) {
+    & $target -Python $Python
+} else {
+    & $target
 }
-if (-not (Test-Path "dist\PolitePuppy.exe")) {
-  Write-Host "`n构建失败：dist\PolitePuppy.exe 没生成" -ForegroundColor Red
-  exit 1
-}
-
-Write-Host "`n[3/3] 打包自检（断言关键模块真的在 exe 里）" -ForegroundColor Cyan
-& $py "dev\pack_check.py" "dist\PolitePuppy.exe"
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "`n自检没过，这个 exe 不要发出去。" -ForegroundColor Red
-  exit 1
-}
-
-$f = Get-Item "dist\PolitePuppy.exe"
-$size = [math]::Round($f.Length / 1MB, 2)
-$hash = (Get-FileHash "dist\PolitePuppy.exe" -Algorithm SHA256).Hash.ToLower()
-
-Write-Host "`n产物：dist\PolitePuppy.exe  $size MB" -ForegroundColor Green
-Write-Host "SHA256: $hash" -ForegroundColor DarkGray
-Write-Host "`n下一步（可选，但建议）：" -ForegroundColor DarkGray
-Write-Host "  $py dev\smoke_test.py          起实例跑 12 项回归" -ForegroundColor DarkGray
-Write-Host "  别忘了把 dist\PolitePuppy.exe 覆盖到交付包的 01_程序\ 下，并重算 SHA256.txt" -ForegroundColor DarkGray
+exit $LASTEXITCODE

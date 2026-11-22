@@ -9,6 +9,7 @@ r"""整理打包：生成可分发交付包（三段式目录 + SHA256 校验清
 用法：python tools\make_release.py
 """
 import hashlib
+import os
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STAMP = "20261029"
 BASE = "礼貌小狗桌宠_最新版_%s" % STAMP
-PKG = Path(r"C:\Users\zheng'zheng\OneDrive\Desktop") / (BASE + ".zip")
+PKG = Path(os.environ.get("PUPPY_RELEASE_OUT") or (Path.home() / "Desktop")) / (BASE + ".zip")
 
 # ---- 01_程序：运行必需 ----
 PROG_FILES = [

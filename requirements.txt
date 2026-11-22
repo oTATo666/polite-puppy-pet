@@ -1,3 +1,26 @@
-pywebview>=6.2,<7
-pystray>=0.19.5
-Pillow>=10.0
+# 礼貌小狗 · 主程序依赖（源码模式 / 重新打包前装这一份）
+# ---------------------------------------------------------------------------
+# 适用：Windows 10/11 + Python 3.10.x（3.11/3.12 没验证过，别踩坑）
+# 安装：
+#     py -3.10 -m pip install -r requirements.txt
+# 只跑 exe 的话不用装任何东西。
+#
+# 原来这份只写了 pywebview / pystray / Pillow 三行，源码模式一跑就崩在
+# `from pptx import Presentation` 和 `import clr` 上。下面把代码里真正用到的补齐。
+# ---------------------------------------------------------------------------
+
+# 窗口 / 托盘 / 画图（main.py 顶层就必须有）
+pywebview==6.2          # 提供 WebView2 窗口；Windows 上会自动带进来 pythonnet
+pystray==0.19.5         # 托盘图标
+Pillow==10.4.0          # 立绘兜底绘制、贴图处理
+
+# 生成 PPT（main.py build_pptx）
+python-pptx==1.0.2
+
+# 系统语音（SAPI 朗读 / 识别，main.py 里的 import clr）
+pythonnet==3.0.5
+
+# 说明：
+#   - numpy / soundfile 只有「音色档案分析」(tools/voice_profile.py) 和克隆链路
+#     用得到，主程序不 import 它们；要跑语音请装 requirements-voice.txt。
+#   - 装不上某个 == 版本时，把 == 换成 >= 再试（版本锁是为了复现，不是硬要求）。
